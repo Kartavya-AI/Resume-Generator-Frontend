@@ -6,7 +6,6 @@ import { marked } from "marked"; // to render markdown
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-
 interface ResumeResponse {
     resume: string;
     processing_time: number;
@@ -19,17 +18,18 @@ export default function ResumeGeneratorPage() {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
 
-    const resumeRef = useRef<HTMLDivElement>(null); // reference for pdf capture
+    // const resumeRef = useRef<HTMLDivElement>(null); 
+    const resumeRef = useRef<HTMLDivElement>(null);
 
-    const API_URL =
-        "https://resume-builder-977121587860.asia-south1.run.app/generate-resume";
+
+    const API_URL =process.env.NEXT_PUBLIC_API_URL;
 
     const [parsed, setParsed] = useState("");
 
     useEffect(() => {
         async function convert() {
             if (result?.resume) {
-                // ✅ check before using
+                //  check before using
                 const html = await marked(result.resume);
                 setParsed(html);
             }
@@ -49,7 +49,7 @@ export default function ResumeGeneratorPage() {
         setResult(null);
 
         try {
-            const res = await axios.post<ResumeResponse>(API_URL, {
+            const res = await axios.post<ResumeResponse>(`${API_URL}/generate-resume`, {
                 user_input: userInput,
             });
 
@@ -80,20 +80,89 @@ export default function ResumeGeneratorPage() {
     };
 
     /** Download as PDF */
-    const handleDownloadPDF = async () => {
-        if (resumeRef.current) {
-            const element = resumeRef.current;
-            const canvas = await html2canvas(element, { scale: 2 });
-            const imgData = canvas.toDataURL("image/png");
+    // const handleDownloadPDF = async () => {
+    //     if (resumeRef.current) {
+    //         const element = resumeRef.current;
+    //         const canvas = await html2canvas(element, { scale: 2 });
+    //         const imgData = canvas.toDataURL("image/png");
 
-            const pdf = new jsPDF("p", "mm", "a4");
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    //         const pdf = new jsPDF("p", "mm", "a4");
+    //         const pdfWidth = pdf.internal.pageSize.getWidth();
+    //         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-            pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-            pdf.save("resume.pdf");
+    //         pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    //         pdf.save("resume.pdf");
+    //     }
+    // };
+
+    const handleDownloadPDF = () => {
+        if (!result || !result.resume) {
+            alert("No resume content available to export.");
+            return;
         }
-    };
+
+        const resumeText: string = result.resume;
+        const pdf = new jsPDF();
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const maxLineWidth = pageWidth - margin * 2;
+
+        const lines: string[] = resumeText.split('\n').map((line) => line ?? "");
+
+        let y = margin;
+        const titleFontSize = 14;
+        const bodyFontSize = 10;
+        const lineHeight = 7;
+
+        lines.forEach((line: string) => {
+            const trimmedLine = line.trim();
+
+            if (trimmedLine === "") {
+            y += lineHeight;
+            return;
+            }
+
+            if (trimmedLine.endsWith(":")) {
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(titleFontSize);
+
+            const titleLines = pdf.splitTextToSize(trimmedLine ?? "", maxLineWidth);
+
+            if (y + titleLines.length * lineHeight > pageHeight - margin) {
+                pdf.addPage();
+                y = margin;
+            }
+
+            titleLines.forEach((tLine: string) => {
+                pdf.text(tLine ?? "", margin, y);
+                y += lineHeight;
+            });
+
+            y += lineHeight / 2;
+
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(bodyFontSize);
+            } else {
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(bodyFontSize);
+
+            const bodyLines = pdf.splitTextToSize(trimmedLine ?? "", maxLineWidth);
+
+            if (y + bodyLines.length * lineHeight > pageHeight - margin) {
+                pdf.addPage();
+                y = margin;
+            }
+
+            bodyLines.forEach((bLine: string) => {
+                pdf.text(bLine ?? "", margin, y);
+                y += lineHeight;
+            });
+            }
+        });
+        pdf.save("resume.pdf");
+        };
+
 
     return (
         <div className="bg-zinc-100 min-h-screen">
@@ -159,12 +228,15 @@ export default function ResumeGeneratorPage() {
                             >
                                 ⬇️ Download .md
                             </button>
-                            <button
+                             <button
                                 onClick={handleDownloadPDF}
                                 className="px-4 py-2 bg-zinc-100 shadow-zinc-500 shadow-md cursor-pointer inset-shadow-2xs inset-shadow-white rounded-lg hover:shadow-lg"
                             >
                                 📄 Download PDF
-                            </button>
+                            </button> 
+                            
+
+
                         </div>
 
                         <p className="text-xs text-gray-500 mt-2">
